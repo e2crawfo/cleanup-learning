@@ -1,6 +1,6 @@
 __author__ = 'e2crawfo'
 
-import threshold_calculator as tc
+import cleanup_utilities as cu
 import nef
 import hrr
 from stats.bootstrapci import bootstrapci
@@ -508,8 +508,8 @@ if __name__=="__main__":
     V_hi = options.Vhi
     V_lo = options.Vlo
 
-    _, threshold_lo = tc.minimum_threshold(P_lo, V_lo, N, D)
-    _, threshold_hi = tc.minimum_threshold(P_hi, V_hi, N, D)
+    _, threshold_lo = cu.minimum_threshold(P_lo, V_lo, N, D)
+    _, threshold_hi = cu.minimum_threshold(P_hi, V_hi, N, D)
 
     user_control_learning = not command_line
     num_runs = options.numruns
