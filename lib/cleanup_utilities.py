@@ -11,7 +11,12 @@ try:
 except:
     from org.python.core.util.ExtraMath import EPSILON
 
-import matplotlib.pyplot as plt
+plotting = True
+try:
+    import matplotlib.pyplot as plt
+except:
+    plotting = False
+
 import operator
 
 """
@@ -230,17 +235,18 @@ def gen_data(D, P, v, N, use_normal_approx=False):
   return probs, thresholds
 
 def plot_data(P, v, N, probs, thresholds):
-  plt.subplot(211)
-  plt.plot(N, probs, marker='o')
-  plt.xlabel("Number of Cleanup Neurons")
-  plt.ylabel("Probability for Binomial")
-  plt.title("Probability for binomial vs Number of Cleanup Neurons, P = %f, v = %d" % (P,v))
-  plt.subplot(212)
-  plt.plot(N, thresholds, marker='o')
-  plt.xlabel("Number of Cleanup Neurons")
-  plt.ylabel("Threshold")
-  plt.title("Required Threshold vs Number of Cleanup Neurons, P = %f, v = %d" % (P,v))
-  plt.show()
+  if plotting:
+      plt.subplot(211)
+      plt.plot(N, probs, marker='o')
+      plt.xlabel("Number of Cleanup Neurons")
+      plt.ylabel("Probability for Binomial")
+      plt.title("Probability for binomial vs Number of Cleanup Neurons, P = %f, v = %d" % (P,v))
+      plt.subplot(212)
+      plt.plot(N, thresholds, marker='o')
+      plt.xlabel("Number of Cleanup Neurons")
+      plt.ylabel("Threshold")
+      plt.title("Required Threshold vs Number of Cleanup Neurons, P = %f, v = %d" % (P,v))
+      plt.show()
 
 if __name__ == "__main__":
   D = 512

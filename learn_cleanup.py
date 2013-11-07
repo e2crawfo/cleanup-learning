@@ -1,6 +1,6 @@
 __author__ = 'e2crawfo'
 
-import cleanup_utilities as cu
+import cleanup_lib.cleanup_utilities as cu
 import nef
 import hrr
 from stats.bootstrapci import bootstrapci
@@ -569,7 +569,7 @@ if __name__=="__main__":
         config.add_section('Options')
         for attr in dir(options):
             item = getattr(options, attr)
-            if not callable(item):
+            if not callable(item) and attr[0] != '_':
                 config.set('Options', attr, str(item))
 
         config.add_section('Error')
