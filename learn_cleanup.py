@@ -347,9 +347,11 @@ def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_
     return net
 
 
-def replace_cleanup(net, D, cleanup_neurons, t_lo, t_hi, learning_rate):
+def replace_cleanup(net, t_lo, t_hi, learning_rate, post_term="cleanup_00")
 
     cleanup = net.get('cleanup')
+    cleanup_neurons = cleanup.neurons
+    D = cleanup.dimension
 
     try:
         bias_termination = cleanup.getTermination(u'bias')
@@ -361,27 +363,25 @@ def replace_cleanup(net, D, cleanup_neurons, t_lo, t_hi, learning_rate):
         has_bias = False
 
     net.remove('cleanup')
-    net.remove('error')
     output = net.get('output')
 
-    for t in output.getTerminations():
-        name = t.getName()
+    term = output.getTermination(post_term)
+    net.network.removeProjection(term)
 
-        term = output.getTermination(name)
-        net.network.removeProjection(term)
-
-        try:
-            output.removeTermination(name)
-        except:
-            output.removeDecodedTermination(name)
-
-        #net.network.removeProjection(mod_00)
+    # random weight matrix to initialize projection from pre to post
+    def rand_weights(w):
+        for i in range(len(w)):
+            for j in range(len(w[0])):
+                w[i][j] = random.uniform(-1e-3,1e-3)
+        return w
+    weight = rand_weights(np.zeros((output.neurons, cleanup.neurons)).tolist())
+    term.setTransform(weight, False)
 
     threshold_ratio = float(t_lo)/float(t_hi)
     cleanup = net.make('cleanup', neurons=cleanup_neurons, dimensions=D, radius=t_hi, intercept=(threshold_ratio, threshold_ratio + 0.8 * (1 - threshold_ratio)))
 
+    net.connect(cleanup.getOrigin('AXON'), term)
     net.connect('input', 'cleanup', pstc=0.001)
-    learning.make(net, errName = 'error', preName='cleanup', postName='output', rate=learning_rate)
 
     if has_bias:
         weights=[[bias_weights]]*cleanup_neurons
@@ -434,8 +434,8 @@ def hrr_noise(D, num):
 
 if __name__=="__main__":
     parser = OptionParser()
-    parser.add_option("-N", "--numneurons", default=800, type="int", help="Number of neurons in cleanup")
-    parser.add_option("-n", "--neuronsperdim", default=50, type="int", help="Number of neurons per dimension for other ensembles")
+    parser.add_option("-N", "--numneurons", default=300, type="int", help="Number of neurons in cleanup")
+    parser.add_option("-n", "--neuronsperdim", default=20, type="int", help="Number of neurons per dimension for other ensembles")
     parser.add_option("-D", "--dim", default=16, type="int", help="Dimension of the vectors that the cleanup operates on")
     parser.add_option("-V", "--numvectors", default=4, type="int", help="Number of vectors that the cleanup will try to learn")
     parser.add_option("--dt", default=0.001, type="float", help="Time step")
@@ -526,6 +526,7 @@ if __name__=="__main__":
 
     _, threshold_lo = cu.minimum_threshold(P_lo, V_lo, N, D)
     _, threshold_hi = cu.minimum_threshold(P_hi, V_hi, N, D)
+    print "done thresholds"
 
     user_control_learning = not command_line
     num_runs = options.numruns
