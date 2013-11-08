@@ -347,7 +347,7 @@ def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_
     return net
 
 
-def replace_cleanup(net, t_lo, t_hi, learning_rate, post_term="cleanup_00")
+def replace_cleanup(net, t_lo, t_hi, learning_rate, post_term="cleanup_00"):
 
     cleanup = net.get('cleanup')
     cleanup_neurons = cleanup.neurons
@@ -558,7 +558,7 @@ if __name__=="__main__":
        network.reset()
 
        if options.replacecleanup:
-           replace_cleanup(network, D, N, threshold_lo, threshold_hi, learning_rate)
+           replace_cleanup(network, threshold_lo, threshold_hi, learning_rate)
 
        if options.replacevectors:
            controller.generate_vectors()
