@@ -16,6 +16,7 @@ import itertools as it
 import numeric as np
 import ConfigParser
 import logging
+import sys
 
 """
 Dimension will be specified by user.
@@ -259,8 +260,6 @@ def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_
     """
 
     logger = logging.getLogger("make_learnable_cleanup")
-    print "low thresh: ", t_lo
-    print "hi_thresh: ", t_hi
 
     net = nef.Network('learn_cleanup', seed=2)
 
@@ -468,12 +467,29 @@ if __name__=="__main__":
     parser.add_option("--replacecleanup", default=True, help="Whether to generate a new cleanup neural population for each run.")
     parser.add_option("--replacevectors", default=True, help="Whether to generate new vocabulary vectors for each run.")
     parser.add_option("--errorlearning", default=False, help="Whether to use error for learning (alternative is to use the learning vector as is).")
+    parser.add_option("--dry-run", dest="dry_run", action='store_true', default=False, help="Whether to use error for learning (alternative is to use the learning vector as is).")
 
     (options, args) = parser.parse_args()
     print "options: ", options
     print "args: ", args
 
+    logging.basicConfig(filename=options.logfile, filemode='w', level=logging.INFO)
+    logging.info("Parameters: " + str(options) + str(args))
+
     command_line = 'cl' in args
+
+    if options.dry_run:
+        logging.info("Dry run!")
+        config = ConfigParser.ConfigParser()
+
+        config.add_section('Error')
+        config.set('Error', 'mean', 0.0)
+        config.set('Error', 'var', 0.0)
+
+        f = open(options.resultsfile, 'w')
+        config.write(f)
+        f.close()
+        sys.exit()
 
     D = options.dim
     N = options.numneurons
@@ -514,8 +530,6 @@ if __name__=="__main__":
     user_control_learning = not command_line
     num_runs = options.numruns
 
-    logging.basicConfig(filename=options.logfile, filemode='w', level=logging.INFO)
-    logging.info("Parameters: " + str(options) + str(args))
 
     network = make_learnable_cleanup(D, N, num_vecs, threshold_lo, threshold_hi,
                     neurons_per_dim=neurons_per_dim, 
