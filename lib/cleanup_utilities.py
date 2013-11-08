@@ -42,7 +42,7 @@ class ProbabilityCalculator(object):
         """
         return np.sin(angle)**(self.dimensions-2)
 
-    def prob_within_angle(self, angle, steps=100000, use_cache=True):
+    def prob_within_angle(self, angle, steps=10000, use_cache=True):
         """
         Calculates the probability that the angle between two random vectors is less than angle. Essentially
         integrates the function prob_angle with respect to angle. Has a caching system, so that previous results
