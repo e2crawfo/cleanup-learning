@@ -11,7 +11,7 @@ pip install:
 * hyperopt
 * dill
 
-Change at top of optimize.py to point to the correct locations.
+Change the paths at top of optimize.py to point to the correct locations.
 
 Create a link from the Nengo distribution to the lib dir of the repo:
 ```
