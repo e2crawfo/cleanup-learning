@@ -169,11 +169,16 @@ if __name__ == "__main__":
             'learning_rate':hp.uniform('learning_rate', 5e-6, 5e-4),
             }
 
+    
+    then = datetime.datetime.now()
+
     best = fmin(objective,
         space=space,
         algo=tpe.suggest,
         max_evals=5,
         trials=trials)
+
+    now = datetime.datetime.now()
 
     if use_mongo:
         for p in workers:
@@ -191,13 +196,13 @@ if __name__ == "__main__":
             t.close()
             os.remove(def_logging_dir + temp_log)
         
+        aggregated_log.write("Time for fmin: " + str(now - then))
+        aggregated_log.write(trials.trials())
+        aggregated_log.write(trials.results())
+        aggregated_log.write(trials.losses())
+        aggregated_log.write(trials.statuses())
+        
         aggregated_log.close()
-
-
-    #print trials.trials
-    #print trials.results
-    #print trials.losses()
-    #print trials.statuses()
 
 print best
 
