@@ -9,9 +9,9 @@ import multiprocessing
 import argparse
 import os
 
-def_logging_dir = "/home/e2crawfo/cleanup-learning/logs/"
-def_results_dir = "/home/e2crawfo/cleanup-learning/temp/"
-def_nengo_path = "/home/e2crawfo/nengo-eb57aaa/"
+def_logging_dir = "/home/ctnuser/e2crawfo/cleanup-learning/logs/"
+def_results_dir = "/home/ctnuser/e2crawfo/cleanup-learning/temp/"
+def_nengo_path = "/home/ctnuser/Nengo/nengo-1_4/"
 
 def make_objective(nengo_path, results_dir, log_file_prefix, date_time_string, D, num_neurons, neurons_per_dim, num_vectors,
                     trial_length, learning_pres, testing_pres, clean_learning, learning_noise,
@@ -118,12 +118,12 @@ if __name__ == "__main__":
     exp_key = argvals.exp_key
     dry_run = argvals.dry_run
 
-    D = 8
-    num_neurons = 300
+    D = 16
+    num_neurons = 500
     neurons_per_dim = 50
     num_vectors = 4
     trial_length = 100 # of timesteps
-    learning_pres = 2
+    learning_pres = 1
     testing_pres = 2
     clean_learning = False
     learning_noise = 0.5
@@ -164,8 +164,8 @@ if __name__ == "__main__":
         trials = Trials()
 
     space = {
-            'learn_bias':hp.uniform('learn_bias', 0.0, 1.0),
-            'test_bias':hp.uniform('test_bias', 0.0, 1.0),
+            'learn_bias':hp.uniform('learn_bias', -.1, .5),
+            'test_bias':hp.uniform('test_bias', -.1, .5),
             'learning_rate':hp.uniform('learning_rate', 5e-6, 5e-4),
             }
 
@@ -196,11 +196,11 @@ if __name__ == "__main__":
             t.close()
             os.remove(def_logging_dir + temp_log)
         
-        aggregated_log.write("Time for fmin: " + str(now - then))
-        aggregated_log.write(trials.trials())
-        aggregated_log.write(trials.results())
-        aggregated_log.write(trials.losses())
-        aggregated_log.write(trials.statuses())
+        aggregated_log.write("Time for fmin: " + str(now - then) + "\n")
+        aggregated_log.write("Trials: " + str(trials.trials) + "\n")
+        aggregated_log.write("Results: " + str(trials.results) + "\n")
+        aggregated_log.write("Losses: " + str(trials.losses()) + "\n")
+        aggregated_log.write("Statuses: " + str(trials.statuses()) + "\n")
         
         aggregated_log.close()
 
