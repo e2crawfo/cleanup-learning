@@ -46,7 +46,7 @@ if __name__=="__main__":
     z = [z[i] for i in indices]
     w = [w[i] for i in indices]
 
-    p = ax.scatter(x, y, z, c=w)
+    p = ax.scatter(x, y, z, cmap='winter', s=50, c=w)
     ax.set_xlabel(x_name)
     ax.set_ylabel(y_name)
     ax.set_zlabel(z_name)
