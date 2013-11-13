@@ -1,1 +1,1 @@
-python optimize.py --mongo --mongo-workers 3 --exp-key $1 --dry-run
+python optimize.py --mongo --mongo-workers 5 --exp-key $1 
