@@ -1,8 +1,10 @@
-from bson.son import SON
-from bson.objectid import ObjectId
 import datetime
+
 from hyperopt import plotting as hplot
 from hyperopt.mongoexp import MongoTrials
+from bson.son import SON
+from bson.objectid import ObjectId
+
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -52,6 +54,17 @@ if __name__=="__main__":
     ax.set_zlabel(z_name)
     fig.colorbar(p)
     plt.show()
+
+    sorted_indices = sorted(range(len(w)), key=lambda x: w[x])
+    print w
+    print sorted_indices
+
+    num = 3
+    print "Best ", num
+    for j in range(num):
+        i = sorted_indices[j]
+        print "Loss: ", w[i], ", Index: ", i, ", ", x_name, ": ", x[i], \
+                ", ", y_name, ": ", y[i], ", ", z_name, ": ", z[i]
 
     #plt.subplot(311)
     #hplot.main_plot_history(trials, do_show=False)
