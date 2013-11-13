@@ -111,7 +111,7 @@ class ProbabilityCalculator(object):
         return pcorrect
 
 
-def binary_search_fun(func, item, bounds=(0,1), non_inc=False, eps=0.00001):
+def binary_search_fun(func, item, bounds=(0,1), non_inc=False, eps=0.00001, verbose=False, integers=False):
   """binary search a monotonic function
 
   :param func: monotonic function defined on the interval "bounds"
@@ -137,22 +137,31 @@ def binary_search_fun(func, item, bounds=(0,1), non_inc=False, eps=0.00001):
     item = -item
   else:
     f = func
+  f_lo = f(bounds[0])
+  f_hi = f(bounds[1])
 
-  if item < f(bounds[0]):
-    print "Stopping early in bshf, no item can exist"
+  if item < f_lo:
+    print "Stopping early in bshf, no item can exist. f(lo) = %g", f_lo
     return None
-  if item > f(bounds[1]):
-    print "Stopping early in bshf, no item can exist"
+  if item > f_hi:
+    print "Stopping early in bshf, no item can exist. f(hi) = %g", f_hi
     return None
 
-  return bsfh(f, item, bounds[0], bounds[1], eps)
+  return bsfh(f, item, bounds[0], bounds[1], eps, verbose, integers)
 
 
-def bsfh(f, item, lo, hi, eps=EPSILON):
+def bsfh(f, item, lo, hi, eps=EPSILON, verbose=False, integers=False):
 
   while not float_eq(lo, hi):
+
     c = float(lo+hi) / 2.0
+    if integers:
+        c = int(c)
+
     f_c = f(c)
+    if verbose:
+        print "Trying point %g, f(%g) = %g, lo: %g, hi: %g" % (c, c, f_c, lo, hi)
+
     if float_eq(item, f_c, eps):
       return c
     elif item < f_c:
@@ -169,7 +178,29 @@ def binomial(n, i, p, bc):
   return bc(n, i) * p**i * (1 - p)**(n-i)
 
 def binomial_sum(n, p, lo, hi, bcf):
-  return np.sum(np.array( [binomial(n, i, p, bcf) for i in range(lo,hi+1)] ) )
+  terms = np.array( [binomial(n, i, p, bcf) for i in range(lo,hi+1)] ) 
+  result = np.sum(terms)
+  return result
+
+factorial_dict={}
+def factorial(m):
+
+    f = 1
+    n = m
+
+    while n > 1:
+        if n in factorial_dict:
+            f = f * factorial_dict[n]
+            break
+
+        f = f * n
+        n-=1
+
+    factorial_dict[m] = f
+    return f
+        
+def choose(n, k):
+    return factorial(n) / (factorial(n - k) * factorial(k))
 
 def check_monotonic(f, op, step=0.001, bounds=(0,1)):
   num_steps = int(float(bounds[1] - bounds[0]) / float(step))
@@ -206,6 +237,22 @@ def minimum_threshold(P, V, N, D, use_normal_approx=False):
     threshold = binary_search_fun(g, prob, non_inc=True, eps=0.0001)
 
     return prob, threshold
+
+
+def minimum_neurons(P, V, T, D, bounds, use_normal_approx=False, verbose=False):
+    """
+    Return the minimum number of neurons required to have a probability of at least P that at least V
+    neurons are activated by a randomly chosen vector (a vector to be learned) given neurons with 
+    threshold T and vectors of dimension D
+    """
+
+    prob_calc = ProbabilityCalculator(D)
+    p = prob_calc.prob_within_angle(np.arccos(T))
+
+    f = lambda N: 1 - binomial_sum(N, p, 0, V-1, choose)
+
+    neurons = binary_search_fun(f, P, bounds=bounds, eps=0.01, verbose=verbose, integers=True)
+    return neurons
 
 def gen_data(D, P, v, N, use_normal_approx=False):
   """
@@ -249,11 +296,13 @@ def plot_data(P, v, N, probs, thresholds):
       plt.show()
 
 if __name__ == "__main__":
-  D = 512
-  N = [2000 * (i + 1) for i in range(25)]
-  P = 0.5
-  v = 20
-
-  p, t = gen_data(D, P, v, N)
-  plot_data(P, v, N, p, t)
+    minimum_neurons(0.9, 10, .5, 16, bounds=(100,1000), verbose=True)
+#  D = 512
+#  N = [2000 * (i + 1) for i in range(25)]
+#  P = 0.5
+#  v = 20
+#
+#  p, t = gen_data(D, P, v, N)
+#  plot_data(P, v, N, p, t)
+#
 

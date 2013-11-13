@@ -103,12 +103,14 @@ class ExperimentController(SimpleNode):
         return v
 
     def record_trial_error(self):
+        #throw out samples at the beginning of the trial
+        self.trial_error = self.trial_error[20:]
+        squared_error = [np.sum(te**2) for te in self.trial_error]
+        if len(squared_error) != 0:
+            self.logger.info("RMSE for trial: %g" % (np.sqrt(np.mean(squared_error))))
+            print "RMSE for trial: %g" % np.sqrt(np.mean(squared_error))
+
         if not self.is_training:
-            #throw out samples at the beginning of the trial
-            self.trial_error = self.trial_error[20:]
-            squared_error = [np.sum(te**2) for te in self.trial_error]
-            if len(squared_error) != 0:
-                self.logger.info("RMSE for trial: %g" % (np.sqrt(np.mean(squared_error))))
             self.error_history.extend(squared_error)
 
         self.trial_error = []
@@ -216,6 +218,20 @@ class ExperimentController(SimpleNode):
 
         self.vectors = [v.v for v in vectors]
         self.logger.info("Generated vectors: %s" % (names))
+        sims = []
+        for i in range(len(names)):
+            name1 = names[i]
+            hrr1 = self.vocab.parse(name1)
+
+            for j in range(i):
+                name2 = names[j]
+                hrr2 = self.vocab.parse(name2)
+                similarity = hrr1.compare(hrr2)
+                sims.append(similarity)
+                self.logger.info("Similarity between %s and %s: %g" % (name1, name2, similarity))
+        
+        self.logger.info("Similarity stats: Mean %g, Max %g, Min %g" \
+                % (np.mean(sims), max(sims), min(sims)))
 
 def make_bias(net, name, gated, bias, neurons, pstc=0.001, direct=False):
 
@@ -237,9 +253,9 @@ def make_bias(net, name, gated, bias, neurons, pstc=0.001, direct=False):
     term = output.getTermination(tname)
     net.network.addProjection(orig, term)
 
-def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_hi=1.0,
-                           neurons_per_dim=50, clean_learning=False, trial_length=100,
-                           training_noise=0.6,testing_noise=0.3,
+def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, threshold=(-.9,0.9), max_rate=(100,200),
+                           radius=1.0, cleanup_pstc=0.001, neurons_per_dim=50, clean_learning=False, 
+                           trial_length=100, training_noise=0.6,testing_noise=0.3,
                            user_control_learning=False, learning_rate=5e-6,
                            schedule_func=None, show_stats=False, 
                            use_neural_input=False, variable_bias=None):
@@ -277,16 +293,16 @@ def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_
     net.add(controller)
 
     logger.info("Adding cleanup")
-    threshold_ratio = float(t_lo)/float(t_hi)
-    net.make('cleanup', neurons=cleanup_neurons, dimensions=D, radius=t_hi, intercept=(threshold_ratio, threshold_ratio + 0.8 * (1 - threshold_ratio)))
+
+    net.make('cleanup', neurons=cleanup_neurons, dimensions=D, radius=radius, intercept=threshold, max_rate=max_rate)
 
     if type(variable_bias) == tuple:
         logger.info("Adding bias controlled by EC")
-        make_bias(net, 'bias', 'cleanup', bias=1.0, neurons=1, direct=True)
+        make_bias(net, 'bias', 'cleanup', bias=1.0, neurons=1, pstc=cleanup_pstc, direct=True)
         net.connect(controller.getOrigin('bias'), 'bias')
     elif variable_bias:
         logger.info("Adding bias controlled by user")
-        make_bias(net, 'bias', 'cleanup', bias=1.0, neurons=1, direct=True)
+        make_bias(net, 'bias', 'cleanup', bias=1.0, neurons=1, pstc=cleanup_pstc, direct=True)
         net.make_input('bias_input', [0])
         net.connect('bias_input', 'bias')
 
@@ -300,12 +316,12 @@ def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_
         net.make('input', neurons=1, dimensions=D, mode='direct')
 
     net.connect( controller.getOrigin('input_vecs'), 'input')
-    net.connect('input', 'cleanup', pstc=0.001)
+    net.connect('input', 'cleanup', pstc=cleanup_pstc)
 
 
     logger.info("Adding error population and learning")
     learning.make(net, errName = 'error', N_err = neurons_per_dim * D, preName='cleanup', postName='output', rate=learning_rate)
-    net.connect( controller.getOrigin('learning_vecs'), 'error', pstc=0.001)
+    net.connect( controller.getOrigin('learning_vecs'), 'error', pstc=0.01)
 
     logger.info("Adding learning gate")
     gating.make(net, name='Gate', gated='error', neurons=40, pstc=0.01)
@@ -347,7 +363,7 @@ def make_learnable_cleanup(D, cleanup_neurons = 1000, num_vecs = 4, t_lo=0.6, t_
     return net
 
 
-def replace_cleanup(net, t_lo, t_hi, learning_rate, post_term="cleanup_00"):
+def replace_cleanup(net, learning_rate=5e-5, threshold=0.0, radius=1.0, max_rate=(100,200), cleanup_pstc=0.001, post_term="cleanup_00"):
 
     cleanup = net.get('cleanup')
     cleanup_neurons = cleanup.neurons
@@ -378,10 +394,11 @@ def replace_cleanup(net, t_lo, t_hi, learning_rate, post_term="cleanup_00"):
     term.setTransform(weight, False)
 
     threshold_ratio = float(t_lo)/float(t_hi)
-    cleanup = net.make('cleanup', neurons=cleanup_neurons, dimensions=D, radius=t_hi, intercept=(threshold_ratio, threshold_ratio + 0.8 * (1 - threshold_ratio)))
+
+    cleanup = net.make('cleanup', neurons=cleanup_neurons, dimensions=D, radius=radius, intercept=threshold, max_rate=max_rate)
 
     net.connect(cleanup.getOrigin('AXON'), term)
-    net.connect('input', 'cleanup', pstc=0.001)
+    net.connect('input', 'cleanup', pstc=cleanup_pstc)
 
     if has_bias:
         weights=[[bias_weights]]*cleanup_neurons
@@ -403,7 +420,7 @@ def simple_noise(noise):
 
     def f(input_vec):
         v = input_vec + noise * hrr.HRR(D).v
-        v = v / sum(v**2)
+        v = v / np.sqrt(sum(v**2))
         return v
 
     return f
@@ -434,22 +451,24 @@ def hrr_noise(D, num):
 
 if __name__=="__main__":
     parser = OptionParser()
-    parser.add_option("-N", "--numneurons", default=300, type="int", help="Number of neurons in cleanup")
+    parser.add_option("-N", "--numneurons", default=2000, type="int", help="Number of neurons in cleanup")
     parser.add_option("-n", "--neuronsperdim", default=20, type="int", help="Number of neurons per dimension for other ensembles")
-    parser.add_option("-D", "--dim", default=16, type="int", help="Dimension of the vectors that the cleanup operates on")
+    parser.add_option("-D", "--dim", default=64, type="int", help="Dimension of the vectors that the cleanup operates on")
     parser.add_option("-V", "--numvectors", default=4, type="int", help="Number of vectors that the cleanup will try to learn")
     parser.add_option("--dt", default=0.001, type="float", help="Time step")
+    parser.add_option("--cleanup-pstc", dest='cleanup_pstc', default=0.02, type="float", help="Time constant for post-synaptic current of cleanup neurons")
     parser.add_option("-a", "--alpha", default=5e-5, type="float", help="Learning rate")
     parser.add_option("-L", "--triallength", default=100, type="int", help="Length of each vector presentation, in timesteps")
     parser.add_option("-P", "--learningpres", default=100, type="int", help="Number of presentations during learning")
     parser.add_option("-p", "--testingpres", default=20, type="int", help="Number of presentations during testing")
-    parser.add_option("-T", "--learningnoise", default=0.5, type="float", help="Parameter for the noise during learning")
-    parser.add_option("-t", "--testingnoise", default=0.5, type="float", help="Parameter for the noise during testing")
+    parser.add_option("-T", "--learningnoise", default=1, type="float", help="Parameter for the noise during learning")
+    parser.add_option("-t", "--testingnoise", default=1, type="float", help="Parameter for the noise during testing")
+    parser.add_option("--noise-type", dest="noise_type", default="hrr", help="Type of noise to use")
     parser.add_option("-R", "--numruns", default=0, type="int", help="Number of runs to do. We can reuse certain things between runs, so this speeds up the process of doing several runs at once")
 
     parser.add_option("--varbias", default="user", help="Whether to use different biases during learning and testing")
-    parser.add_option("-B", "--learningbias", default=.4, type="float", help="Amount of bias during learning. Only has an effect if varthresh is True")
-    parser.add_option("-b", "--testingbias", default=.3, type="float", help="Amount of bias during testing. Only has an effect if varthresh is True")
+    parser.add_option("-B", "--learningbias", default=0.25, type="float", help="Amount of bias during learning. Only has an effect if varthresh is True")
+    parser.add_option("-b", "--testingbias", default=-0.08, type="float", help="Amount of bias during testing. Only has an effect if varthresh is True")
 
     parser.add_option("--Phi", default=.9, type="float", help="Probability for hi")
     parser.add_option("--Plo", default=.9, type="float", help="Probability for low")
@@ -457,7 +476,7 @@ if __name__=="__main__":
     parser.add_option("--Vhi", default=10, type="int", help="Number of neurons for hi")
     parser.add_option("--Vlo", default=20, type="int", help="Number of neurons for low")
 
-    parser.add_option("--threads", default=1, type="int", help="Number of threads to use to run the simulation")
+    parser.add_option("--threads", default=8, type="int", help="Number of threads to use to run the simulation")
 
     parser.add_option("--resultsfile", default="results", help="Name of file to write results to")
     parser.add_option("--logfile", default="log", help="Name of file to log to")
@@ -468,6 +487,11 @@ if __name__=="__main__":
     parser.add_option("--replacevectors", default=True, help="Whether to generate new vocabulary vectors for each run.")
     parser.add_option("--errorlearning", default=False, help="Whether to use error for learning (alternative is to use the learning vector as is).")
     parser.add_option("--dry-run", dest="dry_run", action='store_true', default=False, help="Whether to use error for learning (alternative is to use the learning vector as is).")
+
+    parser.add_option("--reduced-mode", dest="reduced_mode", action='store_true', default=True, help="In reduced mode, Vhi, Vlo, Phi, Plo all ignored. Uses max-firing-rate and radius")
+    parser.add_option("--max-rate", dest="max_rate", default=200, type="float", help="Maximum firing rate of neurons")
+    parser.add_option("--radius", default=.04, type="float", help="Range of values neurons sensitive to. Only used in reduced mode.")
+    parser.add_option("--threshold", default=0.0, type="float", help="Value for intercept of neural tuning curves. Only used in reduced mode")
 
     (options, args) = parser.parse_args()
     print "options: ", options
@@ -492,19 +516,17 @@ if __name__=="__main__":
         sys.exit()
 
     D = options.dim
-    N = options.numneurons
 
     neurons_per_dim = options.neuronsperdim
 
     num_vecs = options.numvectors
 
-    training_noise_val = options.learningnoise
-    training_noise = simple_noise(training_noise_val)
-    #training_noise = hrr_noise(D, 1) 
-
-    testing_noise_val = options.testingnoise
-    testing_noise = simple_noise(testing_noise_val)
-    #testing_noise = hrr_noise(D, 1)
+    if options.noise_type == "hrr":
+        training_noise = hrr_noise(D, options.learningnoise) 
+        testing_noise = hrr_noise(D, options.testingnoise)
+    else:
+        training_noise = simple_noise(options.learningnoise)
+        testing_noise = simple_noise(options.testingnoise)
 
     use_neural_input = options.neuralinput
     clean_learning = options.cleanlearning
@@ -518,22 +540,39 @@ if __name__=="__main__":
     elif variable_bias:
         variable_bias = (options.learningbias, options.testingbias)
 
-    P_hi = options.Phi
-    P_lo = options.Plo
+    if options.reduced_mode:
+        radius = options.radius
+        threshold = (options.threshold, options.threshold)
+        max_rate = (options.max_rate, options.max_rate)
+        if options.numneurons is None:
+            N = cu.minimum_neurons(options.P_lo, options.V_lo, threshold, D)
+        else:
+            N = options.numneurons
+    else:
+        N = options.numneurons
+        P_hi = options.Phi
+        P_lo = options.Plo
 
-    V_hi = options.Vhi
-    V_lo = options.Vlo
+        V_hi = options.Vhi
+        V_lo = options.Vlo
 
-    _, threshold_lo = cu.minimum_threshold(P_lo, V_lo, N, D)
-    _, threshold_hi = cu.minimum_threshold(P_hi, V_hi, N, D)
-    print "done thresholds"
+        _, threshold_lo = cu.minimum_threshold(P_lo, V_lo, N, D)
+        _, threshold_hi = cu.minimum_threshold(P_hi, V_hi, N, D)
+
+        radius = threshold_hi
+        max_rate = (100,200)
+        threshold_ratio = float(threshold_lo)/float(threshold_hi)
+        threshold = (threshold_ratio, threshold_ratio + 0.8 * (1 - threshold_ratio))
+
+    logging.info("Threshold: " + str(threshold))
+    logging.info("Num cleanup neurons: %g" % (N))
+    logging.info("Radius: %g" % (radius))
 
     user_control_learning = not command_line
     num_runs = options.numruns
 
-
-    network = make_learnable_cleanup(D, N, num_vecs, threshold_lo, threshold_hi,
-                    neurons_per_dim=neurons_per_dim, 
+    network = make_learnable_cleanup(D, N, num_vecs, threshold=threshold, max_rate=max_rate,
+                    radius=radius, cleanup_pstc=options.cleanup_pstc, neurons_per_dim=neurons_per_dim, 
                     clean_learning=clean_learning, learning_rate=learning_rate,
                     training_noise=training_noise, testing_noise=testing_noise, 
                     schedule_func=schedule_func, trial_length=trial_length, 
@@ -558,7 +597,7 @@ if __name__=="__main__":
        network.reset()
 
        if options.replacecleanup:
-           replace_cleanup(network, threshold_lo, threshold_hi, learning_rate)
+           replace_cleanup(network, learning_rate, threshold, radius, max_rate, pstc=options.cleanup_pstc)
 
        if options.replacevectors:
            controller.generate_vectors()
