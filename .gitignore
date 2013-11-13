@@ -23,6 +23,9 @@ pip-log.txt
 #mongodb log
 logfile.txt
 
+#swap files
+.*.swp
+
 # Unit test / coverage reports
 .coverage
 .tox
