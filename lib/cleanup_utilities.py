@@ -141,10 +141,10 @@ def binary_search_fun(func, item, bounds=(0,1), non_inc=False, eps=0.00001, verb
   f_hi = f(bounds[1])
 
   if item < f_lo:
-    print "Stopping early in bshf, no item can exist. f(lo) = %g", f_lo
+    print "Stopping early in bshf, no item can exist. f(lo) ", f_lo
     return None
   if item > f_hi:
-    print "Stopping early in bshf, no item can exist. f(hi) = %g", f_hi
+    print "Stopping early in bshf, no item can exist. f(hi) ", f_hi
     return None
 
   return bsfh(f, item, bounds[0], bounds[1], eps, verbose, integers)
@@ -245,7 +245,6 @@ def minimum_neurons(P, V, T, D, bounds, use_normal_approx=False, verbose=False):
     neurons are activated by a randomly chosen vector (a vector to be learned) given neurons with 
     threshold T and vectors of dimension D
     """
-
     prob_calc = ProbabilityCalculator(D)
     p = prob_calc.prob_within_angle(np.arccos(T))
 
