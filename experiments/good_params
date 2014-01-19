@@ -1,0 +1,93 @@
+
+# these are decent parameters settings
+#seed = 201
+#dim = 64
+#ensemble_n = 30 * dim
+#max_rates=[200]
+#intercepts=[0.1]
+#
+#pre_max_rates=[200]
+#pre_intercepts=[0.15]
+#
+#oja_learning_rate = 1e-2
+#
+#learning_time = 10 #in seconds
+#testing_time = 0.5 #in seconds
+#ttms = testing_time * 1000
+#oja_scale = 2.0
+#hrr_num = 2
+
+#another good set
+#seed = 201
+#dim = 64
+#ensemble_n = 30 * dim
+#max_rates=[200]
+#intercepts=[0.1]
+#
+#pre_max_rates=[200]
+#pre_intercepts=[0.1]
+#
+#oja_learning_rate = 1e-2
+#
+#learning_time = 10 #in seconds
+#testing_time = 0.5 #in seconds
+#ttms = testing_time * 1000 #in ms
+#oja_scale = 4
+#hrr_num = 1
+
+#yet another
+#seed = 202
+#dim = 64
+#ensemble_n = 30 * dim
+#max_rates=[200]
+#intercepts=[0.1]
+#
+#pre_max_rates=[200]
+#pre_intercepts=[0.1]
+#
+#oja_learning_rate = 1e-2
+#
+#learning_time = 10 #in seconds
+#testing_time = 0.5 #in seconds
+#ttms = testing_time * 1000 #in ms
+#oja_scale = 6
+#hrr_num = 1
+# these are GOLDEN parameters settings - fo real
+#seed = 822901213359
+#dim = 32
+#max_rates=[200]
+#intercepts=[0.25]
+#
+#ensemble_n = 30 * dim
+#pre_max_rates=[200]
+#pre_intercepts=[0.10]
+#pre_radius=0.5
+#
+#oja_learning_rate = np.true_divide(1,200)
+##oja_learning_rate = 1e-2
+#
+#learning_time = 10 #in seconds
+#testing_time = 0.25 #in seconds
+#ttms = testing_time * 1000 #in ms
+#oja_scale = np.true_divide(11,1)
+##oja_scale = np.true_divide(4,1)
+#hrr_num = 1
+
+#these seem really consistent
+seed = 810
+dim = 128
+max_rates=[200]
+intercepts=[0.25]
+
+ensemble_n = 30 * dim
+pre_max_rates=[200]
+pre_radius=0.5
+pre_intercepts=[0.10]
+
+oja_learning_rate = np.true_divide(1,50)
+
+learning_time = 3 #in seconds
+testing_time = 0.25 #in seconds
+ttms = testing_time * 1000 #in ms
+oja_scale = np.true_divide(10,1)
+hrr_num = 1
