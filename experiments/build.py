@@ -15,40 +15,54 @@ def build_learning_cleanup(model, dim, num_vectors, neurons_per_vector, **kwargs
 
 
 
-def build_cleanup_oja(model, inn, cleanup, **kwargs):
+def build_cleanup_oja(model, inn, cleanup, DperE, NperD, num_ensembles,
+                      ensemble_params, learning_rate, oja_scale, encoders=None,
+                      pre_decoders=None, use_oja=True):
+
+    NperE = NperD * DperE
+    dim = DperE * num_ensembles
 
     # ----- Make Nodes -----
-
     pre_ensembles = []
     for i in range(num_ensembles):
-        pre_ensembles.append(nengo.Ensemble(label='pre_'+str(i), neurons=nengo.LIF(npere),
+        pre_ensembles.append(nengo.Ensemble(label='pre_'+str(i), neurons=nengo.LIF(NperE),
                             dimensions=DperE,
-                            intercepts=pre_intercepts * npere,
-                            max_rates=pre_max_rates * npere,
-                            radius=pre_radius))
+                            **ensemble_params))
+        #intercepts=pre_intercepts * NperE,
+        #                    max_rates=pre_max_rates * NperE,
+        #                    radius=pre_radius))
 
     # ----- Get decoders for pre populations. We use them to initialize the connection weights
-    dummy = nengo.Ensemble(label='dummy',
-                            neurons=nengo.LIF(npere),
-                            dimensions=dim)
+    if pre_decoders is None:
+        dummy = nengo.Ensemble(label='dummy',
+                                neurons=nengo.LIF(NperE),
+                                dimensions=dim)
 
-    def make_func(dim, start):
-        def f(x):
-            y = np.zeros(dim)
-            y[start:start+len(x)] = x
-            return y
-        return f
+        def make_func(dim, start):
+            def f(x):
+                y = np.zeros(dim)
+                y[start:start+len(x)] = x
+                return y
+            return f
 
-    for i, pre in enumerate(pre_ensembles):
-        nengo.Connection(pre, dummy, function=make_func(dim, i * DperE))
+        for i, pre in enumerate(pre_ensembles):
+            nengo.Connection(pre, dummy, function=make_func(dim, i * DperE))
 
-    sim = nengo.Simulator(model, dt=0.001)
-    sim.run(.01)
+    if encoders is None or pre_decoders is None:
+        sim = nengo.Simulator(model, dt=0.001)
+        sim.run(.01)
 
-    pre_decoders = {}
-    for conn in sim.model.connections:
-        if conn.pre.label.startswith('pre'):
-            pre_decoders[conn.pre.label] = conn._decoders
+    if pre_decoders is None:
+        pre_decoders = {}
+        for conn in sim.model.connections:
+            if conn.pre.label.startswith('pre'):
+                pre_decoders[conn.pre.label] = conn._decoders
+
+    if encoders is None:
+        for obj in sim.model.objs:
+            if obj.label.startswith('cleanup'):
+                encoders = obj.encoders
+                break
 
     # ----- Make Connections -----
 
@@ -59,13 +73,17 @@ def build_cleanup_oja(model, inn, cleanup, **kwargs):
         nengo.Connection(inn, pre, transform=in_transform)
         in_transform = np.roll(in_transform, DperE, axis=1)
 
-        oja_rule = OJA(pre_tau=0.05, post_tau=0.05,
-                learning_rate=oja_learning_rate, oja_scale=oja_scale)
-        connection_weights = np.dot(encoder, pre_decoders[pre.label])
+        connection_weights = np.dot(encoders, pre_decoders[pre.label])
+
+        oja_rule = None
+        if use_oja:
+            oja_rule = OJA(pre_tau=0.05, post_tau=0.05,
+                            learning_rate=learning_rate, oja_scale=oja_scale)
+
         conn = nengo.Connection(pre.neurons, cleanup.neurons,
                                 transform=connection_weights, learning_rule=oja_rule)
 
-    return pre_ensembles
+    return pre_ensembles, pre_decoders
 
 
 def build_cleanup_pes(cleanup, error_input, DperE, NperD, num_ensembles, learning_rate):
