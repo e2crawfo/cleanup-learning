@@ -1,19 +1,25 @@
 import nengo
 from nengo.nonlinearities import OJA, PES
+from cutilities import minimum_threshold
 
 import numpy as np
 
-def build_learning_cleanup(model, dim, num_vectors, neurons_per_vector, **kwargs):
-    with model:
-        cleanup = nengo.Ensemble(label='cleanup',
-                                 neurons=nengo.LIF(cleanup_n),
-                                 dimensions=dim,
-                                 max_rates=max_rates  * cleanup_n,
-                                 intercepts=intercepts * cleanup_n,
-                                 encoders=encoder)
-        return cleanup
+def build_learning_cleanup(dim, num_vectors, neurons_per_vector,
+                           intercept=None, radius=1.0, max_rate=200):
+    cleanup_n = neurons_per_vector * num_vectors
 
+    if intercept is None:
+        prob, intercept = minimum_threshold(0.9, neurons_per_vector, cleanup_n, dim)
 
+    print "Threshold:", intercept
+    cleanup = nengo.Ensemble(label='cleanup',
+                             neurons=nengo.LIF(cleanup_n),
+                             dimensions=dim,
+                             radius=radius,
+                             max_rates=[max_rate]  * cleanup_n,
+                             intercepts=[intercept] * cleanup_n,
+                             )
+    return cleanup
 
 def build_cleanup_oja(model, inn, cleanup, DperE, NperD, num_ensembles,
                       ensemble_params, learning_rate, oja_scale, encoders=None,
@@ -74,6 +80,7 @@ def build_cleanup_oja(model, inn, cleanup, DperE, NperD, num_ensembles,
         in_transform = np.roll(in_transform, DperE, axis=1)
 
         connection_weights = np.dot(encoders, pre_decoders[pre.label])
+        connection_weights *= np.true_divide(1, cleanup.radius)
 
         oja_rule = None
         if use_oja:

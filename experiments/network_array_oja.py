@@ -3,6 +3,7 @@ overall_start = time.time()
 
 import nengo
 import build
+from nengo.helpers import tuning_curves
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,11 +30,11 @@ cleanup_n = 1
 NperD = 30
 NperE = NperD * DperE
 
-seed = 123
+seed = 20500
 random.seed(seed)
 
 oja_scale = np.true_divide(10,1)
-oja_learning_rate = np.true_divide(1,50)
+oja_learning_rate = np.true_divide(1,20)
 
 input_vector = hrr.HRR(dim).v
 
@@ -42,11 +43,16 @@ start = time.time()
 model = nengo.Model("Network Array PES", seed=seed)
 
 max_rates=[200]
-intercepts=[0.15]
+intercepts=[0.3]
+radius=1.0
 
-pre_max_rates=[200]
-pre_radius=0.5
-pre_intercepts=[0.10]
+#pre_max_rates=[200] * NperE
+#pre_radius=0.5
+#pre_intercepts=[0.15] * NperE
+pre_max_rates=nengo.objects.Uniform(200,400)
+pre_radius=1.0
+pre_intercepts=nengo.objects.Uniform(0.0, 0.1)
+#pre_intercepts=nengo.objects.Uniform(0.1, 0.1)
 ensemble_params={"radius":pre_radius,
                  "max_rates":pre_max_rates,
                  "intercepts":pre_intercepts}
@@ -99,7 +105,7 @@ phase2_input = nf.make_f(gens2, times2)
 
 #make the neuron start with an encoder different from the vector
 #we train on, since thats what will happen in the real model
-p = 0.25
+p = 0.3
 encoders = np.array([p * training_vector + (1-p) * ortho])
 encoders[0] = encoders[0] / np.linalg.norm(encoders[0])
 print np.dot(encoders,training_vector)
@@ -114,7 +120,8 @@ model = nengo.Model("Phase 1", seed=seed)
 inn = nengo.Node(output=phase1_input)
 
 cleanup = nengo.Ensemble(label='cleanup', neurons=nengo.LIF(cleanup_n), dimensions=dim,
-                      max_rates=max_rates  * cleanup_n, intercepts=intercepts * cleanup_n, encoders=encoders)
+                      max_rates=max_rates  * cleanup_n, intercepts=intercepts * cleanup_n,
+                      encoders=encoders, radius=radius)
 
 pre_ensembles, pre_decoders = \
         build.build_cleanup_oja(model, inn, cleanup, DperE, NperD, num_ensembles,
@@ -133,6 +140,12 @@ start = time.time()
 sim1 = nengo.Simulator(model, dt=0.001)
 sim1.run(sum(times1))
 
+eval_points, activities = tuning_curves(next(o for o in sim1.model.objs if o.label=='cleanup'))
+print eval_points.shape
+print activities.shape
+plt.plot([np.dot(e, encoders[0]) for e in eval_points], activities)
+plt.show()
+
 end = time.time()
 print "Time:", end - start
 
@@ -147,7 +160,8 @@ with model:
     inn = nengo.Node(output=phase2_input)
 
     cleanup = nengo.Ensemble(label='cleanup', neurons=nengo.LIF(cleanup_n), dimensions=dim,
-                          max_rates=max_rates  * cleanup_n, intercepts=intercepts * cleanup_n, encoders=encoders)
+                          max_rates=max_rates  * cleanup_n, intercepts=intercepts * cleanup_n,
+                          encoders=encoders, radius=radius)
 
     pre_ensembles, pre_decoders = \
             build.build_cleanup_oja(model, inn, cleanup, DperE, NperD, num_ensembles,
@@ -190,8 +204,9 @@ t1 = sim1.trange()
 t2 = sim2.trange()
 
 sim_func = lambda x: np.dot(x, training_vector)
-ax, offset = nengo_stack_plot(offset, t1, sim1, inn_p, func=sim_func, label='Similarity')
-ax, offset = nengo_stack_plot(offset, t1, sim1, inn_p, label='Input')
+ax, offset = nengo_stack_plot(offset, t1, sim1, inn_p, func=sim_func, label='Similarity to training')
+sim_func = lambda x: np.dot(x, encoders[0])
+ax, offset = nengo_stack_plot(offset, t1, sim1, inn_p, func=sim_func, label='Similarity to encoder')
 
 ax, offset = nengo_stack_plot(offset, t1, sim1, cleanup1_s, label='Spikes: Testing 1')
 
@@ -235,8 +250,8 @@ file_config = {
                 'dim':dim,
                 'DperE': DperE,
                 'cleanupN': cleanup_n,
-                'premaxr':max_rates[0],
-                'preint':pre_intercepts[0],
+                #'premaxr':max_rates[0],
+                #'preint':pre_intercepts[0],
                 'int':intercepts[0],
                 'ojascale':oja_scale,
                 'lr':oja_learning_rate,
