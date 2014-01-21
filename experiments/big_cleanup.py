@@ -13,7 +13,7 @@ import seaborn as sns
 sns.set(font='Droid Serif')
 
 import argparse
-from mytools import hrr, nf, fh
+from mytools import hrr, nf, fh, nengo_plot_stack
 
 parser = argparse.ArgumentParser(description='Learn a cleanup memory')
 
