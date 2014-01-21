@@ -48,13 +48,13 @@ cleanup = nengo.Ensemble(label='cleanup', neurons = nengo.LIF(cleanup_n), dimens
 nengo.Connection(inn, cleanup)
 
 ensembles = \
-    build.build_cleanup_pes(model, cleanup, inn, DperE, NperD, num_ensembles, learning_rate)
+        build.build_cleanup_pes(cleanup, inn, DperE, NperD, num_ensembles, learning_rate)
 output_ensembles = ensembles[0]
 error_ensembles = ensembles[1]
 
 # Build probes
-output_probes = [nengo.Probe(o, 'decoded_output', filter=0.1) for o in output_probes]
-error_probes = [nengo.Probe(e, 'decoded_output', filter=0.1) for e in error_probes]
+output_probes = [nengo.Probe(o, 'decoded_output', filter=0.1) for o in output_ensembles]
+error_probes = [nengo.Probe(e, 'decoded_output', filter=0.1) for e in error_ensembles]
 
 input_probe = nengo.Probe(inn, 'output')
 
