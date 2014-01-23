@@ -295,13 +295,13 @@ def plot_data(P, v, N, probs, thresholds):
       plt.show()
 
 if __name__ == "__main__":
-    minimum_neurons(0.9, 10, .5, 16, bounds=(100,1000), verbose=True)
-#  D = 512
-#  N = [2000 * (i + 1) for i in range(25)]
-#  P = 0.5
-#  v = 20
-#
-#  p, t = gen_data(D, P, v, N)
-#  plot_data(P, v, N, p, t)
-#
+  #minimum_neurons(0.9, 10, .5, 16, bounds=(100,1000), verbose=True)
+  D = 32
+  P = 0.9
+  v = 20
+  N = [v * (i + 1) for i in range(25)]
+
+  p, t = gen_data(D, P, v, N)
+  plot_data(P, v, N, p, t)
+
 

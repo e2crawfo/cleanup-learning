@@ -1,3 +1,3 @@
 #dummy __init__.py
-import cleanup_utilities
-import learn_cleanup
+from cleanup_utilities import minimum_threshold
+#import learn_cleanup

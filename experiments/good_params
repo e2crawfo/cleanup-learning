@@ -91,3 +91,46 @@ testing_time = 0.25 #in seconds
 ttms = testing_time * 1000 #in ms
 oja_scale = np.true_divide(10,1)
 hrr_num = 1
+
+
+
+
+#from the charts
+DperE = 16
+dim = 16
+num_ensembles = int(dim / DperE)
+dim = num_ensembles * DperE
+
+cleanup_n = 1
+NperD = 30
+NperE = NperD * DperE
+
+seed = 51002000288890
+random.seed(seed)
+
+oja_scale = np.true_divide(5,1)
+oja_learning_rate = np.true_divide(1,50)
+pre_tau = 0.03
+post_tau = 0.03
+
+input_vector = hrr.HRR(dim).v
+
+print "Building..."
+start = time.time()
+model = nengo.Model("Network Array PES", seed=seed)
+
+max_rates=[200]
+intercepts=[0.32]
+radius=1.0
+
+pre_max_rates=[400] * NperE
+#pre_radius=0.5
+pre_intercepts=[0.2] * NperE
+#pre_max_rates=nengo.objects.Uniform(200,400)
+pre_radius=1.0
+#pre_intercepts=nengo.objects.Uniform(0.0, 0.05)
+#pre_intercepts=nengo.objects.Uniform(0.0, 0.05)
+#pre_intercepts=nengo.objects.Uniform(0.1, 0.1)
+ensemble_params={"radius":pre_radius,
+                 "max_rates":pre_max_rates,
+                 "intercepts":pre_intercepts}
