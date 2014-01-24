@@ -19,12 +19,12 @@ random.seed(seed)
 
 sim_class = nengo.Simulator
 learning_time = 2 #in seconds
-testing_time = 0.25 #in seconds
+testing_time = 1 #in seconds
 ttms = testing_time * 1000 #in ms
 hrr_num = 1
 
-DperE = 64
-dim = 64
+DperE = 32
+dim = 32
 num_ensembles = int(dim / DperE)
 dim = num_ensembles * DperE
 
@@ -199,15 +199,26 @@ noisy_vector3 = hrr_noise(training_vector)
 num_plots = 4
 offset = num_plots*100 + 11
 
+dec = pre_decoders['pre_0']
+inv =  np.linalg.pinv(dec)
+
 connection_weights_start = [np.squeeze(sim2.data(wp)[0,:,:], axis=(0,)) for wp in weight_probes]
 connection_weights_start = reduce(lambda x,y: np.concatenate((x,y), axis=1), connection_weights_start)
 print "sum of squares: start"
 print sum (connection_weights_start**2)
 
+enc =  np.dot(connection_weights_start[np.newaxis,:], inv)
+print "norm:", np.linalg.norm(enc[0])
+print hrr.HRR(data=enc[0]).compare(hrr.HRR(data=training_vector))
+
 connection_weights = [np.squeeze(sim2.data(wp)[int((learning_time - 0.2) * 1000),:,:], axis=(0,)) for wp in weight_probes]
 connection_weights = reduce(lambda x,y: np.concatenate((x,y), axis=1), connection_weights)
 print "sum of squares: end"
 print sum (connection_weights**2)
+
+enc =  np.dot(connection_weights[np.newaxis,:], inv)
+print "norm:", np.linalg.norm(enc[0])
+print hrr.HRR(data=enc[0]).compare(hrr.HRR(data=training_vector))
 
 pre_encoders = next(ens.encoders for ens in sim2.model.objs if ens.label.startswith('pre'))
 plt.subplot(offset)
