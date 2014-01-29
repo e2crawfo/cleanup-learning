@@ -2,6 +2,7 @@ import time
 overall_start = time.time()
 
 import nengo
+from nengo_ocl.sim_ocl import Simulator as SimOCL
 import build
 
 import numpy as np
@@ -14,10 +15,11 @@ from mytools import hrr, nf, fh, nengo_stack_plot
 import random
 
 sim_class = nengo.Simulator
+sim_class = SimOCL
 sim_length = 2
 
 DperE = 2
-dim = 8
+dim = 16
 num_ensembles = int(dim / DperE)
 dim = num_ensembles * DperE
 

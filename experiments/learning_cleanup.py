@@ -2,6 +2,7 @@
 import time
 overall_start = time.time()
 import nengo
+from nengo_ocl.sim_ocl import Simulator as SimOCL
 from nengo.matplotlib import rasterplot
 
 import numpy as np
@@ -16,21 +17,22 @@ import itertools
 
 from build import build_learning_cleanup, build_cleanup_oja, build_cleanup_pes
 
-seed = 810100000
+seed = 8101000099
 random.seed(seed)
+do_plots = True
 
 sim_class = nengo.Simulator
+sim_class = SimOCL
 training_time = 2 #in seconds
 testing_time = 0.5
 
 DperE = 32
-dim = 32
+dim = 128
 num_ensembles = int(dim / DperE)
 dim = num_ensembles * DperE
 
 neurons_per_vector = 20
-#neurons_per_vector = 40
-num_vectors = 5
+num_vectors = 20
 cleanup_n = neurons_per_vector * num_vectors
 
 NperD = 30
@@ -38,7 +40,7 @@ NperE = NperD * DperE
 total_n = NperE * num_ensembles
 
 max_rates=[400]
-intercept=[0.1]
+intercept=[0.07]
 radius=1.0
 
 pre_max_rates=[400] * NperE
@@ -72,7 +74,7 @@ if num_vectors > 1:
     print "Min"
     print np.min(simils)
 
-noise = nf.make_hrr_noise(dim, 1)
+noise = nf.make_hrr_noise(dim, 2)
 testing_vectors = [noise(tv) for tv in training_vectors] + [hrr.HRR(dim).v]
 
 gens = [nf.output(100, True, tv, False) for tv in training_vectors]
@@ -122,7 +124,7 @@ print "Time:", end - start
 print "Simulating..."
 start = time.time()
 
-sim = nengo.Simulator(model, dt=0.001)
+sim = sim_class(model, dt=0.001)
 sim.run(sum(times))
 
 end = time.time()
@@ -132,41 +134,42 @@ print "Time:", end - start
 print "Plotting..."
 start = time.time()
 
-t = sim.trange()
+if do_plots:
+    t = sim.trange()
 
-num_plots = 6
-offset = num_plots * 100 + 10 + 1
+    num_plots = 6
+    offset = num_plots * 100 + 10 + 1
 
-ax, offset = nengo_stack_plot(offset, t, sim, address_input_p, label='Input')
-ax, offset = nengo_stack_plot(offset, t, sim, pre_probes, label='Pre')
-ax, offset = nengo_stack_plot(offset, t, sim, cleanup_s, label='Cleanup Spikes')
-ax, offset = nengo_stack_plot(offset, t, sim, output_probes, label='Output')
+    ax, offset = nengo_stack_plot(offset, t, sim, address_input_p, label='Input')
+    ax, offset = nengo_stack_plot(offset, t, sim, pre_probes, label='Pre')
+    ax, offset = nengo_stack_plot(offset, t, sim, cleanup_s, label='Cleanup Spikes')
+    ax, offset = nengo_stack_plot(offset, t, sim, output_probes, label='Output')
 
-def make_sim_func(h):
-    def sim(vec):
-        return h.compare(hrr.HRR(data=vec))
-    return sim
+    def make_sim_func(h):
+        def sim(vec):
+            return h.compare(hrr.HRR(data=vec))
+        return sim
 
-sim_funcs = [make_sim_func(hrr.HRR(data=h)) for h in training_vectors]
-ax, offset = nengo_stack_plot(offset, t, sim, output_probes, label='Output',
-                              func=sim_funcs)
-ax, offset = nengo_stack_plot(offset, t, sim, address_input_p, label='Output',
-                              func=sim_funcs)
-file_config = {
-                'NperE':NperE,
-                'numEnsembles':num_ensembles,
-                'dim':dim,
-                'DperE': DperE,
-                'premaxr':max_rates[0],
-                'preint':pre_intercepts[0],
-                'int':intercept,
-                'ojascale':oja_scale,
-                'lr':oja_learning_rate,
-              }
+    sim_funcs = [make_sim_func(hrr.HRR(data=h)) for h in training_vectors]
+    ax, offset = nengo_stack_plot(offset, t, sim, output_probes, label='Output',
+                                  func=sim_funcs)
+    ax, offset = nengo_stack_plot(offset, t, sim, address_input_p, label='Output',
+                                  func=sim_funcs)
+    file_config = {
+                    'NperE':NperE,
+                    'numEnsembles':num_ensembles,
+                    'dim':dim,
+                    'DperE': DperE,
+                    'premaxr':max_rates[0],
+                    'preint':pre_intercepts[0],
+                    'int':intercept,
+                    'ojascale':oja_scale,
+                    'lr':oja_learning_rate,
+                  }
 
-filename = fh.make_filename('learning_cleanup', directory='learning_cleanup',
-                            config_dict=file_config, extension='.png')
-plt.savefig(filename)
+    filename = fh.make_filename('learning_cleanup', directory='learning_cleanup',
+                                config_dict=file_config, extension='.png')
+    plt.savefig(filename)
 
 end = time.time()
 print "Time:", end - start
