@@ -2,180 +2,223 @@
 import time
 overall_start = time.time()
 import nengo
-from nengo_ocl.sim_ocl import Simulator as SimOCL
 from nengo.matplotlib import rasterplot
 
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
-sns.set(font='Droid Serif')
+#import seaborn as sns
+#sns.set(font='Droid Serif')
 
 import argparse
-from mytools import hrr, nf, fh, nengo_stack_plot
+from mytools import hrr, nf, fh, timed
+from mytools import extract_probe_data, nengo_plot_helper
 import random
 import itertools
 
 from build import build_learning_cleanup, build_cleanup_oja, build_cleanup_pes
 
-seed = 8101000099
-random.seed(seed)
-do_plots = True
 
-sim_class = nengo.Simulator
-sim_class = SimOCL
-training_time = 2 #in seconds
-testing_time = 0.5
+@timed.namedtimer("build_and_run_vectors")
+def build_and_run_vectors(seed, dim, DperE, NperD, num_vectors, neurons_per_vector, training_time,
+                          testing_time, cleanup_params, ensemble_params, oja_learning_rate,
+                          oja_scale, pre_tau, post_tau, pes_learning_rate, **kwargs):
 
-DperE = 32
-dim = 128
-num_ensembles = int(dim / DperE)
-dim = num_ensembles * DperE
+    cleanup_n = neurons_per_vector * num_vectors
 
-neurons_per_vector = 20
-num_vectors = 20
-cleanup_n = neurons_per_vector * num_vectors
+    vocab = hrr.Vocabulary(dim)
+    training_vectors = [vocab.parse("x"+str(i)).v for i in range(num_vectors)]
+    print "Training Vector Similarities:"
+    simils = []
 
-NperD = 30
-NperE = NperD * DperE
-total_n = NperE * num_ensembles
+    if num_vectors > 1:
+        for a,b in itertools.combinations(training_vectors, 2):
+            s = np.dot(a,b)
+            simils.append(s)
+            print s
+        print "Mean"
+        print np.mean(simils)
+        print "Max"
+        print np.max(simils)
+        print "Min"
+        print np.min(simils)
 
-max_rates=[400]
-intercept=[0.07]
-radius=1.0
+    noise = nf.make_hrr_noise(dim, 2)
+    testing_vectors = [noise(tv) for tv in training_vectors] + [hrr.HRR(dim).v]
 
-pre_max_rates=[400] * NperE
-#pre_radius=np.true_divide(1, np.sqrt(num_ensembles))
-pre_intercepts=[0.1] * NperE
-pre_radius=1.0
-pre_ensemble_params = {'radius':pre_radius,
-                       'max_rates':pre_max_rates,
-                       'intercepts':pre_intercepts}
+    build_and_run_(seed, dim, DperE, NperD, cleanup_n, training_vectors, testing_vectors,
+                      training_time, testing_time, cleanup_params, ensemble_params,
+                      oja_learning_rate, oja_scale, pre_tau, post_tau, pes_learning_rate)
 
-oja_scale = np.true_divide(5,1)
-oja_learning_rate = np.true_divide(1,50)
-pre_tau = 0.03
-post_tau = 0.03
-pes_learning_rate = np.true_divide(1,1)
 
-vocab = hrr.Vocabulary(dim)
-training_vectors = [vocab.parse("x"+str(i)).v for i in range(num_vectors)]
-print "Training Vector Similarities:"
-simils = []
+@timed.namedtimer("build_and_run")
+def build_and_run(seed, dim, DperE, NperD, cleanup_n, training_vectors, testing_vectors,
+                  training_time, testing_time, cleanup_params, ensemble_params, oja_learning_rate,
+                  oja_scale, pre_tau, post_tau, pes_learning_rate, **kwargs):
 
-if num_vectors > 1:
-    for a,b in itertools.combinations(training_vectors, 2):
-        s = np.dot(a,b)
-        simils.append(s)
-        print s
-    print "Mean"
-    print np.mean(simils)
-    print "Max"
-    print np.max(simils)
-    print "Min"
-    print np.min(simils)
+    random.seed(seed)
 
-noise = nf.make_hrr_noise(dim, 2)
-testing_vectors = [noise(tv) for tv in training_vectors] + [hrr.HRR(dim).v]
+    num_ensembles = int(dim / DperE)
+    dim = num_ensembles * DperE
 
-gens = [nf.output(100, True, tv, False) for tv in training_vectors]
-gens += [nf.output(100, True, tv, False) for tv in testing_vectors]
-times = [training_time] * len(training_vectors) + [testing_time] * len(testing_vectors)
-address_func = nf.make_f(gens, times)
-storage_func = address_func
+    NperE = NperD * DperE
+    total_n = NperE * num_ensembles
 
-print "Building..."
-start = time.time()
+    ensemble_params['max_rates'] *= NperE
+    ensemble_params['intercepts'] *= NperE
 
-model = nengo.Model("Learn cleanup", seed=seed)
+    cleanup_params['max_rates'] *= cleanup_n
+    cleanup_params['intercepts'] *= cleanup_n
 
-# ----- Make Input -----
-address_input = nengo.Node(output=address_func)
-storage_input = nengo.Node(output=storage_func)
+    gens = [nf.output(100, True, tv, False) for tv in training_vectors]
+    gens += [nf.output(100, True, tv, False) for tv in testing_vectors]
+    times = [training_time] * len(training_vectors) + [testing_time] * len(testing_vectors)
+    address_func = nf.make_f(gens, times)
+    storage_func = address_func
 
-# ----- Build neural part -----
-#cleanup = build_training_cleanup(dim, num_vectors, neurons_per_vector, intercept=intercept)
-cleanup = nengo.Ensemble(label='cleanup', neurons=nengo.LIF(cleanup_n),
-                      dimensions=dim,
-                      max_rates=max_rates  * cleanup_n, intercepts=intercept * cleanup_n,
-                      radius=radius)
+    print "Building..."
 
-pre_ensembles, pre_decoders, pre_connections = \
-        build_cleanup_oja(model, address_input, cleanup, DperE, NperD, num_ensembles,
-                          pre_ensemble_params, oja_learning_rate, oja_scale,
-                          end_time=training_time * num_vectors)
+    model = nengo.Model("Learn cleanup", seed=seed)
 
-output_ensembles, error_ensembles = build_cleanup_pes(cleanup, storage_input, DperE, NperD, num_ensembles, pes_learning_rate)
+    # ----- Make Input -----
+    address_input = nengo.Node(output=address_func)
+    storage_input = nengo.Node(output=storage_func)
 
-gate = nengo.Node(output=lambda x: [1.0] if x > training_time * num_vectors else [0.0])
-for ens in error_ensembles:
-    nengo.Connection(gate, ens.neurons, transform=-10 * np.ones((NperE, 1)))
+    # ----- Build neural part -----
+    #cleanup = build_training_cleanup(dim, num_vectors, neurons_per_vector, intercept=intercept)
+    cleanup = nengo.Ensemble(label='cleanup', neurons=nengo.LIF(cleanup_n),
+                          dimensions=dim, **cleanup_params)
 
-# ----- Build probes -----
-address_input_p = nengo.Probe(address_input, 'output')
-storage_input_p = nengo.Probe(storage_input, 'output')
-pre_probes = [nengo.Probe(ens, 'decoded_output', filter=0.1) for ens in pre_ensembles]
-cleanup_s = nengo.Probe(cleanup, 'spikes')
-output_probes =  [nengo.Probe(ens, 'decoded_output', filter=0.1) for ens in output_ensembles]
+    pre_ensembles, pre_decoders, pre_connections = \
+            build_cleanup_oja(model, address_input, cleanup, DperE, NperD, num_ensembles,
+                              ensemble_params, oja_learning_rate, oja_scale,
+                              end_time=training_time * num_vectors)
 
-end = time.time()
-print "Time:", end - start
+    output_ensembles, error_ensembles = build_cleanup_pes(cleanup, storage_input, DperE, NperD, num_ensembles, pes_learning_rate)
 
-# ----- Run and get data-----
-print "Simulating..."
-start = time.time()
+    gate = nengo.Node(output=lambda x: [1.0] if x > training_time * num_vectors else [0.0])
+    for ens in error_ensembles:
+        nengo.Connection(gate, ens.neurons, transform=-10 * np.ones((NperE, 1)))
 
-sim = sim_class(model, dt=0.001)
-sim.run(sum(times))
+    # ----- Build probes -----
+    address_input_p = nengo.Probe(address_input, 'output')
+    storage_input_p = nengo.Probe(storage_input, 'output')
+    pre_probes = [nengo.Probe(ens, 'decoded_output', filter=0.1) for ens in pre_ensembles]
+    cleanup_s = nengo.Probe(cleanup, 'spikes')
+    output_probes =  [nengo.Probe(ens, 'decoded_output', filter=0.1) for ens in output_ensembles]
 
-end = time.time()
-print "Time:", end - start
+    # ----- Run and get data-----
+    print "Simulating..."
 
-# ----- Plot! -----
-print "Plotting..."
-start = time.time()
+    sim = nengo.Simulator(model, dt=0.001)
+    sim.run(sum(times))
 
-if do_plots:
+    return locals()
+
+
+@timed.namedtimer("extract_data")
+def extract_data(filename, sim, address_input_p, storage_input_p,
+                 pre_probes, cleanup_s, output_probes, sim_funcs, **kwargs):
+
     t = sim.trange()
+    address_input, _ = extract_probe_data(t, sim, address_input_p)
+    pre_decoded, _ = extract_probe_data(t, sim, pre_probes)
+    cleanup_spikes, _ = extract_probe_data(t, sim, cleanup_s, spikes=True)
+    output_decoded, _ = extract_probe_data(t, sim, output_probes)
+    output_sim, _ = extract_probe_data(t, sim, output_probes, func=sim_funcs)
+    input_sim, _ = extract_probe_data(t, sim, address_input_p, func=sim_funcs)
+
+    ret = dict(t=t, address_input=address_input, pre_decoded=pre_decoded,
+               cleanup_spikes=cleanup_spikes, output_decoded=output_decoded,
+               output_sim=output_sim, input_sim=input_sim)
+
+    fh.npsave(filename, **ret)
+
+    return ret
+
+
+@timed.namedtimer("plot")
+def plot(filename, t, address_input, pre_decoded, cleanup_spikes,
+          output_decoded, output_sim, input_sim, **kwargs):
 
     num_plots = 6
     offset = num_plots * 100 + 10 + 1
 
-    ax, offset = nengo_stack_plot(offset, t, sim, address_input_p, label='Input')
-    ax, offset = nengo_stack_plot(offset, t, sim, pre_probes, label='Pre')
-    ax, offset = nengo_stack_plot(offset, t, sim, cleanup_s, label='Cleanup Spikes')
-    ax, offset = nengo_stack_plot(offset, t, sim, output_probes, label='Output')
+    ax, offset = nengo_plot_helper(offset, t, address_input)
+    ax, offset = nengo_plot_helper(offset, t, pre_decoded)
+    ax, offset = nengo_plot_helper(offset, t, cleanup_spikes, spikes=True)
+    ax, offset = nengo_plot_helper(offset, t, output_decoded)
+    ax, offset = nengo_plot_helper(offset, t, output_sim)
+    ax, offset = nengo_plot_helper(offset, t, input_sim)
 
-    def make_sim_func(h):
-        def sim(vec):
-            return h.compare(hrr.HRR(data=vec))
-        return sim
-
-    sim_funcs = [make_sim_func(hrr.HRR(data=h)) for h in training_vectors]
-    ax, offset = nengo_stack_plot(offset, t, sim, output_probes, label='Output',
-                                  func=sim_funcs)
-    ax, offset = nengo_stack_plot(offset, t, sim, address_input_p, label='Output',
-                                  func=sim_funcs)
-    file_config = {
-                    'NperE':NperE,
-                    'numEnsembles':num_ensembles,
-                    'dim':dim,
-                    'DperE': DperE,
-                    'premaxr':max_rates[0],
-                    'preint':pre_intercepts[0],
-                    'int':intercept,
-                    'ojascale':oja_scale,
-                    'lr':oja_learning_rate,
-                  }
-
-    filename = fh.make_filename('learning_cleanup', directory='learning_cleanup',
-                                config_dict=file_config, extension='.png')
     plt.savefig(filename)
 
-end = time.time()
-print "Time:", end - start
+def start():
+    seed = 81223
 
-overall_end = time.time()
-print "Total time: ", overall_end - overall_start
+    training_time = 1 #in seconds
+    testing_time = 0.5
 
-plt.show()
+    DperE = 32
+    dim = 32
+    NperD = 30
+
+    neurons_per_vector = 20
+    num_vectors = 5
+
+    oja_scale = np.true_divide(2,1)
+    oja_learning_rate = np.true_divide(1,50)
+    pre_tau = 0.03
+    post_tau = 0.03
+    pes_learning_rate = np.true_divide(1,1)
+
+    cleanup_params = {'radius':1.0,
+                       'max_rates':[400],
+                       'intercepts':[0.13]}
+
+    ensemble_params = {'radius':1.0,
+                       'max_rates':[400],
+                       'intercepts':[0.1]}
+
+    config = locals()
+
+    #intercepts actually matter quite a bit
+    config['cint'] = cleanup_params['intercepts'][0]
+    config['eint'] = ensemble_params['intercepts'][0]
+
+    do_plots = True
+
+    data_title = 'lcdata'
+    directory = 'learning_cleanup_data'
+
+    data_filename = fh.make_filename(data_title, directory=directory,
+                                     config_dict=config, extension='.npz',
+                                     use_time=False,
+                                     omit=['ensemble_params', 'cleanup_params'])
+
+    data = fh.npload(data_filename)
+
+    if data is None:
+        results = build_and_run_vectors(**config)
+
+        sim = results['sim']
+        training_vectors = results['training_vectors']
+
+        def make_sim_func(h):
+            def sim(vec):
+                return h.compare(hrr.HRR(data=vec))
+            return sim
+        sim_funcs = [make_sim_func(hrr.HRR(data=h)) for h in training_vectors]
+        data = extract_data(filename=data_filename, sim_funcs=sim_funcs, **results)
+
+    if do_plots:
+        plot_title = 'lcplot'
+        directory='learning_cleanup_plots'
+        plot_filename = fh.make_filename(plot_title, directory=directory,
+                                    config_dict=config, extension='.png',
+                                    omit=['ensemble_params', 'cleanup_params'])
+        plot(filename=plot_filename, **data)
+        plt.show()
+
+if __name__ == "__main__":
+    start()
 
