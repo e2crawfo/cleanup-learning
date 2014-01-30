@@ -1,6 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
-import hrr
+from mytools import hrr
 import random
 
 def semantic_network(n, seed=1):
