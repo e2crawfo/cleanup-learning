@@ -135,20 +135,21 @@ def binary_search_fun(func, item, bounds=(0,1), non_inc=False, eps=0.00001, verb
   if non_inc:
     f = lambda x: -func(x)
     item = -item
+    #bounds = -bounds[1], -bounds[0]
   else:
     f = func
+
   f_lo = f(bounds[0])
   f_hi = f(bounds[1])
 
-  if item < f_lo:
-    print "Stopping early in bshf, no item can exist. f(lo) ", f_lo
-    return None
-  if item > f_hi:
-    print "Stopping early in bshf, no item can exist. f(hi) ", f_hi
+  if item < f_lo or f_hi < item :
+    print "Stopping early in bshf, no item can exist."
+    print "f(%g) = %g, f(%g) = %g, item=%g "% (bounds[0], f_lo, bounds[1], f_hi, item)
     return None
 
-  return bsfh(f, item, bounds[0], bounds[1], eps, verbose, integers)
+  val = bsfh(f, item, bounds[0], bounds[1], eps, verbose, integers)
 
+  return val
 
 def bsfh(f, item, lo, hi, eps=EPSILON, verbose=False, integers=False):
 
@@ -160,9 +161,12 @@ def bsfh(f, item, lo, hi, eps=EPSILON, verbose=False, integers=False):
 
     f_c = f(c)
     if verbose:
+        print "Looking for point: %g" % item
         print "Trying point %g, f(%g) = %g, lo: %g, hi: %g" % (c, c, f_c, lo, hi)
 
     if float_eq(item, f_c, eps):
+      if verbose:
+          print "Found: f(%g) = %g" % (c, item)
       return c
     elif item < f_c:
       hi = c
@@ -178,7 +182,7 @@ def binomial(n, i, p, bc):
   return bc(n, i) * p**i * (1 - p)**(n-i)
 
 def binomial_sum(n, p, lo, hi, bcf):
-  terms = np.array( [binomial(n, i, p, bcf) for i in range(lo,hi+1)] ) 
+  terms = np.array( [binomial(n, i, p, bcf) for i in range(lo,hi+1)] )
   result = np.sum(terms)
   return result
 
@@ -198,7 +202,7 @@ def factorial(m):
 
     factorial_dict[m] = f
     return f
-        
+
 def choose(n, k):
     return factorial(n) / (factorial(n - k) * factorial(k))
 
@@ -231,10 +235,10 @@ def minimum_threshold(P, V, N, D, use_normal_approx=False):
     #else:
     f = lambda p: 1 - binomial_sum(N, p, 0, V-1, bcf)
 
-    prob = binary_search_fun(f, P, eps=0.0001)
+    prob = binary_search_fun(f, P, eps=0.001)
 
     g = lambda t: prob_calc.prob_within_angle(np.arccos(t))
-    threshold = binary_search_fun(g, prob, non_inc=True, eps=0.0001)
+    threshold = binary_search_fun(g, prob, bounds=(-1,1), non_inc=True, eps=0.001)
 
     return prob, threshold
 
